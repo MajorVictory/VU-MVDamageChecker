@@ -5,7 +5,7 @@ local DamageCheckerConfig = {
 	['WarnOnMisMatch'] = true,
 	['FixDoubleDamage'] = true,
 	['WarnOnDoubleDamage'] = true,
-	['EnforceExpectedDamage'] = true,
+	['EnforceExpectedDamage'] = false,
 	['DamageTolerance'] = 1.0,
 }
 
