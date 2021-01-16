@@ -4,7 +4,7 @@ An admin tool for Battlefield 3: Venice Unleashed that checks player damage agai
 This mod performs some of the same functions as [FlashHits' damageCheck](https://github.com/FlashHit/VU-Mods/tree/master/damageCheck) mod but with changes of my own.
 
 ## Description
-This mod cross-checks the damage players are giving via guns to help ctach cheaters who are boosting their damage. **No action is taken** when such an event occure, rather a warning message in the server's console is issued. It is still up to an admin to review these warnings and determine if they are malicious or not.
+This mod cross-checks the damage players are giving via guns to help ctach cheaters who are boosting their damage. **No action is taken** when such an event occurs, rather a warning message in the server's console is issued. *It is still up to an admin to review these warnings and determine if they are malicious or not.*
 
 An additional attempt to fix one version of the duplicate hits bug has been included
 
