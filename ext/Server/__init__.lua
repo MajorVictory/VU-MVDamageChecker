@@ -5,6 +5,7 @@ local DamageCheckerConfig = {
 	['WarnOnMisMatch'] = true,
 	['FixDoubleDamage'] = true,
 	['WarnOnDoubleDamage'] = true,
+	['WarnOnWrongPellets'] = true,
 	['EnforceExpectedDamage'] = false,
 	['DamageTolerance'] = 1.0,
 }
@@ -37,6 +38,13 @@ Hooks:Install('Soldier:Damage', 1, function(hook, soldier, info, giverInfo)
 	end
 	if (info.boneIndex >= 0 and info.boneIndex <= 5) then
 
+		local weaponNumBullets = nil
+		if giverInfo.giver.soldier.weaponsComponent.currentWeapon.weaponModifier.weaponShotModifier ~= nil and giverInfo.giver.soldier.weaponsComponent.currentWeapon.weaponModifier.weaponShotModifier.numberOfBulletsPerShell ~= nil then
+			weaponNumBullets = giverInfo.giver.soldier.weaponsComponent.currentWeapon.weaponModifier.weaponShotModifier.numberOfBulletsPerShell
+		else
+			weaponNumBullets = WeaponFiringData(giverInfo.weaponFiring).primaryFire.shot.numberOfBulletsPerShell
+		end
+
 		local bullet = nil
 		if giverInfo.giver.soldier.weaponsComponent.currentWeapon.weaponModifier.weaponProjectileModifier ~= nil and giverInfo.giver.soldier.weaponsComponent.currentWeapon.weaponModifier.weaponProjectileModifier.projectileData ~= nil then
 			bullet = BulletEntityData(giverInfo.giver.soldier.weaponsComponent.currentWeapon.weaponModifier.weaponProjectileModifier.projectileData)
@@ -55,16 +63,26 @@ Hooks:Install('Soldier:Damage', 1, function(hook, soldier, info, giverInfo)
 			damagedMaterialMapIndex = 256 + damagedMaterialMapIndex
 		end
 
+		local protectionMultiplier = 1.0
 		local materialGridItems = MaterialInteractionGridRow(materialGrid.interactionGrid[materialGrid.materialIndexMap[damagedMaterialMapIndex+1]+1]).items
-		local multiplier = MaterialRelationDamageData(materialGridItems[bulletMaterial].physicsPropertyProperties[1]).damageProtectionMultiplier
-		
-		local expectedActualDamage = bullet.startDamage * multiplier -- shortest range, full damage
 
+		local physicsPropertyList = materialGridItems[bulletMaterial].physicsPropertyProperties
+		if (#physicsPropertyList < 1) then
+			return
+		end
+		for i=1, #physicsPropertyList do
+			if (physicsPropertyList[i]:Is('MaterialRelationDamageData')) then
+				local relationData = MaterialRelationDamageData(physicsPropertyList[i])
+				protectionMultiplier = relationData.damageProtectionMultiplier
+			end
+		end
+		
+		local expectedActualDamage = bullet.startDamage * protectionMultiplier -- shortest range, full damage
 		local shotDistance = info.position:Distance(info.origin)
 
 		if (shotDistance >= bullet.damageFalloffEndDistance) then -- long range, full end damage
 
-			expectedActualDamage = bullet.endDamage * multiplier
+			expectedActualDamage = bullet.endDamage * protectionMultiplier
 
 		elseif (shotDistance > bullet.damageFalloffStartDistance) then -- mid range, scaled damage
 
@@ -74,11 +92,22 @@ Hooks:Install('Soldier:Damage', 1, function(hook, soldier, info, giverInfo)
 			local distancePercent = (shotDistance - bullet.damageFalloffStartDistance) / distanceScaleRange
 			local damageMod = damageScaleRange * distancePercent
 
-			expectedActualDamage = (bullet.startDamage + damageMod) * multiplier
+			expectedActualDamage = (bullet.startDamage + damageMod) * protectionMultiplier
+		end
+
+		local pelletHitCount = 1
+		if (weaponNumBullets > 1 and info.damage > 0) then
+			pelletHitCount = info.damage / expectedActualDamage
+			expectedActualDamage = pelletHitCount * expectedActualDamage
+		end
+		if (pelletHitCount > weaponNumBullets) then
+			if (DamageCheckerConfig.WarnOnWrongPellets) then
+				print('Warning! More pellets hit than gun has! Hit: '..tostring(pelletHitCount)..' | Gun Pellets: '..tostring(weaponNumBullets)..' for '..giverInfo.giver.name)
+			end
 		end
 
 		if (DamageCheckerConfig.FixDoubleDamage) then
-			if (math.floor(info.damage) > math.floor(expectedActualDamage) and math.floor(info.damage/2) == math.floor(expectedActualDamage)) then
+			if (math.round(info.damage) > math.round(expectedActualDamage) and math.round(info.damage/2) == math.round(expectedActualDamage)) then
 
 				if (DamageCheckerConfig.WarnOnDoubleDamage) then
 					print('Warning! Fixed Double damage for '..giverInfo.giver.name)
@@ -87,20 +116,18 @@ Hooks:Install('Soldier:Damage', 1, function(hook, soldier, info, giverInfo)
 			end
 		end
 
-		local damageDifference = math.floor(info.damage) - math.floor(expectedActualDamage)
+		local damageDifference = math.round(info.damage) - math.round(expectedActualDamage)
 
 		if (DamageCheckerConfig.ShowDebug) then
 			print('==================: '..tostring(SharedUtils:GetTimeMS()))
 			print('Distance: '..tostring(shotDistance))
-			print('bulletMaterialMapIndex: '..tostring(materialContainer.materialNames[bulletMaterialMapIndex+1]))
-			print('damagedMaterialMapIndex: '..tostring(materialContainer.materialNames[damagedMaterialMapIndex+1]))
-			print('multiplier (bullet -> bone): '..tostring(multiplier))
-			print('damageFalloffStartDistance: '..tostring(bullet.damageFalloffStartDistance))
-			print('damageFalloffEndDistance: '..tostring(bullet.damageFalloffEndDistance))
-			print('bullet.startDamage: '..tostring(bullet.startDamage))
-			print('bullet.endDamage: '..tostring(bullet.endDamage))
-			print('expectedActualDamage: '..tostring(expectedActualDamage)..' floor: '..math.floor(expectedActualDamage))
-			print('info.damage: '..tostring(info.damage)..' floor: '..math.floor(info.damage))
+			print(tostring(materialContainer.materialNames[bulletMaterialMapIndex+1])..' -> '..tostring(materialContainer.materialNames[damagedMaterialMapIndex+1]))
+			print('Num Pellets: '..tostring(weaponNumBullets)..', Hit: '..tostring(pelletHitCount))
+			print('protectionMultiplier  (bullet -> dmgMat): '..tostring(protectionMultiplier))
+			print('Damage Falloff - Start: '..tostring(bullet.damageFalloffStartDistance)..', End: '..tostring(bullet.damageFalloffEndDistance)..', Range: '..tostring(bullet.damageFalloffEndDistance - bullet.damageFalloffStartDistance))
+			print('Bullet Damage - Start: '..tostring(bullet.startDamage)..', End: '..tostring(bullet.endDamage)..', Range: '..tostring(bullet.endDamage - bullet.startDamage))
+			print('expectedActualDamage: '..tostring(expectedActualDamage)..' round(): '..math.round(expectedActualDamage))
+			print('info.damage         : '..tostring(info.damage)..' round(): '..math.round(info.damage))
 			print('damageDifference: '..tostring(damageDifference)..' tolerance: '..tostring(DamageCheckerConfig.DamageTolerance))
 			print('============================================')
 		end
@@ -129,10 +156,18 @@ Events:Subscribe('Level:Destroy', function()
 	materialGrid = nil
 end)
 
-
 function string:split(sep)
     local sep, fields = sep or ":", {}
     local pattern = string.format("([^%s]+)", sep)
     self:gsub(pattern, function(c) fields[#fields + 1] = c end)
     return fields
+end 
+
+function math.sign(v)
+	return (v >= 0 and 1) or -1
+end
+
+function math.round(v, bracket)
+	bracket = bracket or 1
+	return math.floor(v/bracket + math.sign(v) * 0.5) * bracket
 end
