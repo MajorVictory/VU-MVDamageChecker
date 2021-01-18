@@ -117,10 +117,11 @@ Hooks:Install('Soldier:Damage', 1, function(hook, soldier, info, giverInfo)
 	if (weaponNumBullets > 1 and info.damage > 0) then
 		pelletHitCount = info.damage / expectedActualDamage
 		damageCheckAmount = info.damage / pelletHitCount
-	end
-	if (pelletHitCount > weaponNumBullets) then
-		if (DamageCheckerConfig.WarnOnWrongPellets) then
-			print('Warning! More pellets hit than gun has! Hit: '..tostring(pelletHitCount)..' | Gun Pellets: '..tostring(weaponNumBullets)..' for '..giverInfo.giver.name)
+		
+		if (pelletHitCount > weaponNumBullets) then
+			if (DamageCheckerConfig.WarnOnWrongPellets) then
+				print('Warning! More pellets hit than gun has! Hit: '..tostring(pelletHitCount)..' | Gun Pellets: '..tostring(weaponNumBullets)..' for '..giverInfo.giver.name)
+			end
 		end
 	end
 
