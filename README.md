@@ -8,8 +8,12 @@ This mod cross-checks the damage players are giving via guns to help ctach cheat
 
 An additional attempt to fix one version of the duplicate hits bug has been included
 
+## Known Issues
+- The crossbow's Scan Bolt, Explosive Bolt, and BA Bolt will throw damage mismatch errors
+- If a player switches weapons before a fired bullet hits its target, a damage mismatch error will be triggered
+
 ## Configuration
-The following variables are available via RCON:
+The following variables are available via RCON, default values can be changed by editing the `DamageCheckerConfig` array in `ext/Server/__init__.lua` or by adding these commands to your Startup.txt
 
 ### `vu-mvdamagechecker.WarnOnMisMatch <boolean>`
 Default value: `true`
@@ -31,6 +35,14 @@ In current builds of the game, there is a known issue where sometimes a bullet d
 Default value: `true`
 If a double damage event is found, this will print a warning message in the console.
 
+### `vu-mvdamagechecker.WarnOnWrongPellets <boolean>`
+Default value: `true`
+Specifcally for shotguns, warns if detected number of pellets hit is higher than the gun has. Shotguns have normal vlaues of `7`, `9`, `10`, `11`, and `12`.
+
 ### `vu-mvdamagechecker.ShowDebug <boolean>`
+Default value: `false`
+Prints full debug data on every bullet hit. For testing only.
+
+### `vu-mvdamagechecker.ShowDebugOnMisMatch <boolean>`
 Default value: `false`
 Prints full debug data on every bullet hit. For testing only.

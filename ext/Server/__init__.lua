@@ -2,6 +2,7 @@ local materialGrid = nil
 local materialContainer = nil
 local DamageCheckerConfig = {
 	['ShowDebug'] = false,
+	['ShowDebugOnMisMatch'] = false,
 	['WarnOnMisMatch'] = true,
 	['FixDoubleDamage'] = true,
 	['WarnOnDoubleDamage'] = true,
@@ -37,19 +38,26 @@ Hooks:Install('Soldier:Damage', 1, function(hook, soldier, info, giverInfo)
 		return
 	end
 
+	local currentWeapon = giverInfo.giver.soldier.weaponsComponent.currentWeapon -- SoldierWeapon
+	local fireData = WeaponFiringData(currentWeapon.weaponFiring.data) or WeaponFiringData(giverInfo.weaponFiring)
+	if currentWeapon.weaponModifier.weaponFiringDataModifier ~= nil and currentWeapon.weaponModifier.weaponFiringDataModifier.weaponFiring ~= nil then
+		fireData = WeaponFiringData(currentWeapon.weaponModifier.weaponFiringDataModifier.weaponFiring)
+	end
+
 	-- grab number of shells from firing function, checking for a modifier first
-	local weaponNumBullets = nil
-	if giverInfo.giver.soldier.weaponsComponent.currentWeapon.weaponModifier.weaponShotModifier ~= nil and giverInfo.giver.soldier.weaponsComponent.currentWeapon.weaponModifier.weaponShotModifier.numberOfBulletsPerShell ~= nil then
-		weaponNumBullets = giverInfo.giver.soldier.weaponsComponent.currentWeapon.weaponModifier.weaponShotModifier.numberOfBulletsPerShell
+	local weaponNumBullets = 1
+	if currentWeapon.weaponModifier.weaponShotModifier ~= nil and currentWeapon.weaponModifier.weaponShotModifier.numberOfBulletsPerShell ~= nil then
+		weaponNumBullets = currentWeapon.weaponModifier.weaponShotModifier.numberOfBulletsPerShell
 	else
-		weaponNumBullets = WeaponFiringData(giverInfo.weaponFiring).primaryFire.shot.numberOfBulletsPerShell
+		weaponNumBullets = fireData.primaryFire.shot.numberOfBulletsPerShell
 	end
 
 	-- grab bullet instance from weapon, checking for a modifier first, then for a secondary projectile, then the standard projectile
 	local bullet = nil
-	local fireData = WeaponFiringData(giverInfo.weaponFiring)
-	if giverInfo.giver.soldier.weaponsComponent.currentWeapon.weaponModifier.weaponProjectileModifier ~= nil and giverInfo.giver.soldier.weaponsComponent.currentWeapon.weaponModifier.weaponProjectileModifier.projectileData ~= nil then
-		bullet = BulletEntityData(giverInfo.giver.soldier.weaponsComponent.currentWeapon.weaponModifier.weaponProjectileModifier.projectileData)
+	if currentWeapon.weaponModifier.weaponProjectileModifier ~= nil and currentWeapon.weaponModifier.weaponProjectileModifier.projectileData ~= nil then
+		bullet = BulletEntityData(currentWeapon.weaponModifier.weaponProjectileModifier.projectileData)
+	elseif fireData.primaryFire.shot.secondaryProjectile ~= nil then
+		bullet = BulletEntityData(fireData.primaryFire.shot.secondaryProjectile)
 	else
 		bullet = BulletEntityData(fireData.primaryFire.shot.projectileData)
 	end
@@ -131,11 +139,11 @@ Hooks:Install('Soldier:Damage', 1, function(hook, soldier, info, giverInfo)
 	if (DamageCheckerConfig.ShowDebug) then
 		print('==================: '..tostring(SharedUtils:GetTimeMS()))
 		print('Distance: '..tostring(shotDistance))
-		print(tostring(materialContainer.materialNames[bulletMaterialMapIndex+1])..' -> '..tostring(materialContainer.materialNames[damagedMaterialMapIndex+1]))
+		print(tostring(bullet.ammunitionType)..' ('..tostring(materialContainer.materialNames[bulletMaterialMapIndex+1])..' -> '..tostring(materialContainer.materialNames[damagedMaterialMapIndex+1])..')')
 		print('Num Pellets: '..tostring(weaponNumBullets)..', Hit: '..tostring(pelletHitCount))
 		print('protectionMultiplier  (bullet -> dmgMat): '..tostring(protectionMultiplier))
-		print('penetrationMultiplier  (bullet -> dmgMat): '..tostring(penetrationMultiplier))
-		print('protectionThreshold  (bullet -> dmgMat): '..tostring(protectionThreshold))
+		--print('penetrationMultiplier  (bullet -> dmgMat): '..tostring(penetrationMultiplier))
+		--print('protectionThreshold  (bullet -> dmgMat): '..tostring(protectionThreshold))
 		print('Damage Falloff - Start: '..tostring(bullet.damageFalloffStartDistance)..', End: '..tostring(bullet.damageFalloffEndDistance)..', Range: '..tostring(bullet.damageFalloffEndDistance - bullet.damageFalloffStartDistance))
 		print('Bullet Damage - Start: '..tostring(bullet.startDamage)..', End: '..tostring(bullet.endDamage)..', Range: '..tostring(bullet.endDamage - bullet.startDamage))
 		print('expectedActualDamage: '..tostring(expectedActualDamage)..' round: '..math.round(expectedActualDamage))
@@ -149,6 +157,23 @@ Hooks:Install('Soldier:Damage', 1, function(hook, soldier, info, giverInfo)
 		-- user might have changed their damage values
 		if (DamageCheckerConfig.WarnOnMisMatch) then
 			print('Warning! '..giverInfo.giver.name.. ' ['..giverInfo.giver.guid:ToString('D')..'] damage exceeded tolerance! Expected: '..expectedActualDamage..', Got: '..tostring(info.damage)..')')
+
+			if (DamageCheckerConfig.ShowDebugOnMisMatch) then
+				print('==================: '..tostring(SharedUtils:GetTimeMS()))
+				print('Distance: '..tostring(shotDistance))
+				print(tostring(bullet.ammunitionType)..' ('..tostring(materialContainer.materialNames[bulletMaterialMapIndex+1])..' -> '..tostring(materialContainer.materialNames[damagedMaterialMapIndex+1])..')')
+				print('Num Pellets: '..tostring(weaponNumBullets)..', Hit: '..tostring(pelletHitCount))
+				print('protectionMultiplier  (bullet -> dmgMat): '..tostring(protectionMultiplier))
+				--print('penetrationMultiplier  (bullet -> dmgMat): '..tostring(penetrationMultiplier))
+				--print('protectionThreshold  (bullet -> dmgMat): '..tostring(protectionThreshold))
+				print('Damage Falloff - Start: '..tostring(bullet.damageFalloffStartDistance)..', End: '..tostring(bullet.damageFalloffEndDistance)..', Range: '..tostring(bullet.damageFalloffEndDistance - bullet.damageFalloffStartDistance))
+				print('Bullet Damage - Start: '..tostring(bullet.startDamage)..', End: '..tostring(bullet.endDamage)..', Range: '..tostring(bullet.endDamage - bullet.startDamage))
+				print('expectedActualDamage: '..tostring(expectedActualDamage)..' round: '..math.round(expectedActualDamage))
+				print('damageCheckAmount   : '..tostring(damageCheckAmount)..' round: '..math.round(damageCheckAmount))
+				print('info.damage         : '..tostring(info.damage)..' round: '..math.round(info.damage))
+				print('damageDifference: '..tostring(damageDifference)..' tolerance: '..tostring(DamageCheckerConfig.DamageTolerance))
+				print('============================================')
+			end
 		end
 
 		if (DamageCheckerConfig.EnforceExpectedDamage) then
